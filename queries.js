@@ -50,7 +50,7 @@ client.query(
     user_tweet_id SERIAL PRIMARY KEY NOT NULL,
     user_id INT,
     tweet_id INT,
-    CONSTRAINT fk_user FOREIGN KEY(user_id) REFERENCES users(user_id) ON DELETE RESTRICT,
+    CONSTRAINT fk_user FOREIGN KEY(user_id) REFERENCES users(user_id) ON DELETE CASCADE,
     CONSTRAINT fk_tweet FOREIGN KEY(tweet_id) REFERENCES tweets(tweet_id) ON DELETE CASCADE
   );`, (error, results) => {
     if(error){
@@ -77,13 +77,17 @@ const signIn = (request, response, next) => {
 
     bcrypt.compare(password, hash).then((results) => {
       if(results){
+        console.log("Login success!");
         response.status(200).json({
-          message: "Welcome back!"
+          message: "Welcome back!",
+          result: user.rows[0]
         });
       }else{
+        console.log("Wrong password");
         response.status(401).json({
           message: "Wrong password"
         });
+        return;
       }
     });
   })
@@ -91,10 +95,11 @@ const signIn = (request, response, next) => {
     response.status(401).json({
       message: "Wrong username"
     });
+    return;
   })
 }
 
-const signUp = (request, response, next) => {
+const signUp = (request, response) => {
   const {email} = request.body;
 
   getUserByEmail(email)
@@ -103,15 +108,18 @@ const signUp = (request, response, next) => {
       response.status(401).json({
         message: "Email has already been taken"
       });
+      return;
     }else{
       createUser(request, response);
     }
   })
   .catch((error) => {
+    console.log(error.stack);
     response.status(500).json({
       message: "Oops...something went wrong",
       error: error.stack
     });
+    return;
   })
 }
 
@@ -120,7 +128,10 @@ const getUserById = (request, response) => {
 
   client.query('SELECT * FROM users WHERE user_id = $1', [id], (error, results) => {
     if(error){
-      throw error;
+      response.status(404).json({
+        message: "User not found"
+      })
+      return;
     }
     response.status(200).json(results.rows);
   });
@@ -139,6 +150,7 @@ const createUser = (request, response) => {
             response.status(401).json({
               message: "Username has already been taken"
             })
+            return;
           }
           response.status(201).json({
             message: "User created"
@@ -151,13 +163,16 @@ const createUser = (request, response) => {
 
 const getTweets = (request, response) => {
   client.query(
-    `SELECT user_tweet_id, name, username, tweet, tweet_time, edited FROM users_tweets 
+    `SELECT user_tweet_id, users_tweets.user_id as uid, users_tweets.tweet_id as t_id, name, username, tweet, tweet_time, edited FROM users_tweets 
     JOIN users ON users_tweets.user_id = users.user_id
     JOIN tweets ON users_tweets.tweet_id = tweets.tweet_id
     ORDER BY tweet_time DESC`, 
     (error, results) => {
       if(error){
-        throw error;
+        response.status(404).json({
+          message: "There's no any tweet"
+        })
+        return;
       }
       response.status(200).json(results.rows);
     }
@@ -168,14 +183,17 @@ const getTweetById = (request, response) => {
   const id = parseInt(request.params.id);
 
   client.query(
-    `SELECT user_tweet_id, name, username, tweet, tweet_time, edited FROM users_tweets 
+    `SELECT user_tweet_id, users_tweets.user_id as uid, users_tweets.tweet_id as t_id, name, username, tweet, tweet_time, edited FROM users_tweets 
     JOIN users ON users_tweets.user_id = users.user_id
     JOIN tweets ON users_tweets.tweet_id = tweets.tweet_id
     WHERE user_tweet_id = $1`, 
     [id], 
     (error, results) => {
       if(error){
-        throw error;
+        response.status(404).json({
+          message: "Tweet not found"
+        })
+        return;
       }
       response.status(200).json(results.rows);
   });
@@ -191,7 +209,10 @@ const createTweet = (request, response) => {
     [tweet, tweet_time], 
     (error, results) => {
       if(error){
-        throw error;
+        response.status(409).json({
+          message: "Invalid tweet format"
+        })
+        return;
       }
 
       tweet_id = results.rows[0].tweet_id;
@@ -202,6 +223,7 @@ const createTweet = (request, response) => {
         (error, results) => {
           if(error){
             console.log(error);
+            return;
           }
           response.status(201);
         }
@@ -224,7 +246,10 @@ const updateTweet = (request, response) => {
     [tweet, tweet_time, tweet_id], 
     (error, results) => {
       if(error){
-        throw error;
+        response.status(404).json({
+          message: "Tweet not found"
+        })
+        return;
       }
       response.status(200).json({
         message: "Tweet updated"
@@ -238,6 +263,10 @@ const deleteTweet = (request, response) => {
   client.query('DELETE FROM tweets WHERE tweet_id = $1', [tweet_id], (error, results) => {
     if(error){
       console.log(error.stack);
+      response.status(404).json({
+        message: "Tweet not found"
+      })
+      return;
     }
     response.status(200).json({
       message: "Tweet deleted"

@@ -1,20 +1,24 @@
 const express = require('express');
 const query = require('./queries');
+// const cors = require('cors');
 
 const app = express();
 const port = 3000;
 
+app.use(function(req, res, next){
+  res.set({
+    'Access-Control-Allow-Origin': 'http://localhost:5000',
+    'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE',
+    'Access-Control-Allow-Headers': 'Content-Type, Access-Control-Allow-Headers'
+  });
+  next();
+});
+// app.use(cors());
+app.use(express.json());
 app.use(
-  express.json(),
   express.urlencoded({
     extended: true
-  }),
-  function(req, res, next){
-    res.setHeader('Access-Control-Allow-Origin', 'http://localhost:5000');
-    res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE');
-    res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Access-Control-Allow-Headers');
-    next();
-  }
+  })
 );
 
 app.post('/signin', query.signIn);
